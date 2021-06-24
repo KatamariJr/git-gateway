@@ -114,18 +114,32 @@ func (a *API) DeleteInstance(w http.ResponseWriter, r *http.Request) error {
 }
 
 func mergeConfig(baseConfig *conf.Configuration, newConfig *conf.Configuration) *conf.Configuration {
-	if newConfig.GitHub.AccessToken != "" {
-		baseConfig.GitHub.AccessToken = newConfig.GitHub.AccessToken
-	}
 
-	if newConfig.GitHub.Endpoint != "" {
-		baseConfig.GitHub.Endpoint = newConfig.GitHub.Endpoint
-	}
+	//GitHub
+	baseConfig.GitHub.AccessToken = returnBaseIfNewIsBlank(baseConfig.GitHub.AccessToken, newConfig.GitHub.AccessToken)
+	baseConfig.GitHub.Endpoint = returnBaseIfNewIsBlank(baseConfig.GitHub.Endpoint, newConfig.GitHub.Endpoint)
+	baseConfig.GitHub.Repo = returnBaseIfNewIsBlank(baseConfig.GitHub.Repo, newConfig.GitHub.Repo)
 
-	if newConfig.GitHub.Repo != "" {
-		baseConfig.GitHub.Repo = newConfig.GitHub.Repo
-	}
+	//GitLab
+	baseConfig.GitLab.AccessTokenType = returnBaseIfNewIsBlank(baseConfig.GitLab.AccessTokenType, newConfig.GitLab.AccessTokenType)
+	baseConfig.GitLab.AccessToken = returnBaseIfNewIsBlank(baseConfig.GitLab.AccessToken, newConfig.GitLab.AccessToken)
+	baseConfig.GitLab.Endpoint = returnBaseIfNewIsBlank(baseConfig.GitLab.Endpoint, newConfig.GitLab.Endpoint)
+	baseConfig.GitLab.Repo = returnBaseIfNewIsBlank(baseConfig.GitLab.Repo, newConfig.GitLab.Repo)
+
+	//BitBucket
+	baseConfig.BitBucket.Endpoint = returnBaseIfNewIsBlank(baseConfig.BitBucket.Endpoint, newConfig.BitBucket.Endpoint)
+	baseConfig.BitBucket.Repo = returnBaseIfNewIsBlank(baseConfig.BitBucket.Repo, newConfig.BitBucket.Repo)
+	baseConfig.BitBucket.ClientID = returnBaseIfNewIsBlank(baseConfig.BitBucket.ClientID, newConfig.BitBucket.ClientID)
+	baseConfig.BitBucket.ClientSecret = returnBaseIfNewIsBlank(baseConfig.BitBucket.ClientSecret, newConfig.BitBucket.ClientSecret)
+	baseConfig.BitBucket.RefreshToken = returnBaseIfNewIsBlank(baseConfig.BitBucket.RefreshToken, newConfig.BitBucket.RefreshToken)
 
 	baseConfig.Roles = newConfig.Roles
 	return baseConfig
+}
+
+func returnBaseIfNewIsBlank(baseValue, newValue string) string {
+	if newValue == "" {
+		return baseValue
+	}
+	return newValue
 }
