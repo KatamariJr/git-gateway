@@ -95,10 +95,8 @@ func NewAPIWithVersion(ctx context.Context, globalConfig *conf.GlobalConfigurati
 	r.Get("/health", api.HealthCheck)
 
 	r.Route("/", func(r *router) {
-		if globalConfig.MultiInstanceMode {
-			r.Use(api.loadJWSSignatureHeader)
-			r.Use(api.loadInstanceConfig)
-		}
+		r.Use(api.requireAuthentication)
+
 		r.With(api.requireAuthentication).Mount("/github", NewGitHubGateway())
 		r.With(api.requireAuthentication).Mount("/gitlab", NewGitLabGateway())
 		r.With(api.requireAuthentication).Mount("/bitbucket", NewBitBucketGateway())
@@ -107,9 +105,9 @@ func NewAPIWithVersion(ctx context.Context, globalConfig *conf.GlobalConfigurati
 
 	if globalConfig.MultiInstanceMode {
 		// Operator microservice API
-		r.With(api.verifyOperatorRequest).Get("/", api.GetAppManifest)
+		r.Get("/", api.GetAppManifest)
 		r.Route("/instances", func(r *router) {
-			r.Use(api.verifyOperatorRequest)
+			//r.Use(api.verifyOperatorRequest)
 
 			r.Post("/", api.CreateInstance)
 			r.Route("/{instance_id}", func(r *router) {
@@ -118,6 +116,11 @@ func NewAPIWithVersion(ctx context.Context, globalConfig *conf.GlobalConfigurati
 				r.Get("/", api.GetInstance)
 				r.Put("/", api.UpdateInstance)
 				r.Delete("/", api.DeleteInstance)
+				r.With(api.requireAuthentication).Get("/settings", api.InstanceSettings)
+				r.With(api.requireAuthentication).Mount("/github", NewGitHubGateway())
+				r.With(api.requireAuthentication).Mount("/gitlab", NewGitLabGateway())
+				r.With(api.requireAuthentication).Mount("/bitbucket", NewBitBucketGateway())
+
 			})
 		})
 	}

@@ -35,14 +35,24 @@ func (a *API) extractBearerToken(w http.ResponseWriter, r *http.Request) (string
 }
 
 func (a *API) parseJWTClaims(bearer string, r *http.Request) (context.Context, error) {
-	config := getConfig(r.Context())
+	jwtSecret := a.getJWTSecret(r.Context())
 	p := jwt.Parser{ValidMethods: []string{jwt.SigningMethodHS256.Name}}
+	logrus.Infof("key: %v", jwtSecret)
 	token, err := p.ParseWithClaims(bearer, &GatewayClaims{}, func(token *jwt.Token) (interface{}, error) {
-		return []byte(config.JWT.Secret), nil
+		return []byte(jwtSecret), nil
 	})
 	if err != nil {
 		return nil, unauthorizedError("Invalid token: %v", err)
 	}
 
 	return withToken(r.Context(), token), nil
+}
+
+//return either the config jwt secret or global jwt secret.
+func (a *API) getJWTSecret(ctx context.Context) string {
+	config := getConfig(ctx)
+	if config != nil {
+		return config.JWT.Secret
+	}
+	return "secret"
 }

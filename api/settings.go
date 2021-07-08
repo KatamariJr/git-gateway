@@ -22,3 +22,17 @@ func (a *API) Settings(w http.ResponseWriter, r *http.Request) error {
 
 	return sendJSON(w, http.StatusOK, &settings)
 }
+
+func (a *API) InstanceSettings(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+	config := getInstance(ctx)
+
+	settings := Settings{
+		GitHub:    config.BaseConfig.GitHub.Repo != "",
+		GitLab:    config.BaseConfig.GitLab.Repo != "",
+		BitBucket: config.BaseConfig.BitBucket.Repo != "",
+		Roles:     config.BaseConfig.Roles,
+	}
+
+	return sendJSON(w, http.StatusOK, &settings)
+}

@@ -58,6 +58,7 @@ type GlobalConfiguration struct {
 	Logging           LoggingConfig `envconfig:"LOG"`
 	OperatorToken     string        `split_words:"true"`
 	MultiInstanceMode bool
+	JWT               JWTConfiguration `json:"jwt"`
 }
 
 // Configuration holds all the per-instance configuration.

@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io/ioutil"
 	"net/http"
@@ -9,6 +10,8 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+
+	"github.com/netlify/git-gateway/conf"
 
 	"github.com/sirupsen/logrus"
 )
@@ -18,8 +21,8 @@ type GitLabGateway struct {
 	proxy *httputil.ReverseProxy
 }
 
-var gitlabPathRegexp = regexp.MustCompile("^/gitlab/?")
-var gitlabAllowedRegexp = regexp.MustCompile("^/gitlab/(merge_requests|(repository/(files|commits|tree|compare|branches)))/?")
+var gitlabPathRegexp = regexp.MustCompile("/gitlab/?")
+var gitlabAllowedRegexp = regexp.MustCompile("/gitlab/(merge_requests|(repository/(files|commits|tree|compare|branches)))/?")
 
 func NewGitLabGateway() *GitLabGateway {
 	return &GitLabGateway{
@@ -40,11 +43,20 @@ func gitlabDirector(r *http.Request) {
 	r.Host = target.Host
 	r.URL.Scheme = target.Scheme
 	r.URL.Host = target.Host
+
+	//remove 'instances/{uuid} from url if it is set
+	originalPath := r.URL.EscapedPath()
+	reg := regexp.MustCompile("/instances/\\b[0-9a-f]{8}\\b-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-\\b[0-9a-f]{12}\\b")
+	res := reg.Split(originalPath, -1)
+	if len(res) == 2 {
+		originalPath = res[1]
+	}
+
 	// We need to set URL.Opaque using the target and r.URL EscapedPath
 	// methods, because the Go stdlib URL parsing automatically converts
 	// %2F to / in URL paths, and GitLab requires %2F to be preserved
 	// as-is.
-	r.URL.Opaque = "//" + target.Host + singleJoiningSlash(target.EscapedPath(), gitlabPathRegexp.ReplaceAllString(r.URL.EscapedPath(), "/"))
+	r.URL.Opaque = "//" + target.Host + singleJoiningSlash(target.EscapedPath(), gitlabPathRegexp.ReplaceAllString(originalPath, "/"))
 	if targetQuery == "" || r.URL.RawQuery == "" {
 		r.URL.RawQuery = targetQuery + r.URL.RawQuery
 	} else {
@@ -58,7 +70,7 @@ func gitlabDirector(r *http.Request) {
 	// remove header which causes false positives for blocking on Gitlab loadbalancers
 	r.Header.Del("Client-IP")
 
-	config := getConfig(ctx)
+	config := getRegularOrInstanceConfig(ctx)
 	tokenType := config.GitLab.AccessTokenType
 
 	if tokenType == "personal_access" {
@@ -82,7 +94,8 @@ func gitlabDirector(r *http.Request) {
 
 func (gl *GitLabGateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	config := getConfig(ctx)
+	config := getRegularOrInstanceConfig(r.Context())
+
 	if config == nil || config.GitLab.AccessToken == "" {
 		handleError(notFoundError("No GitLab Settings Configured"), w, r)
 		return
@@ -108,17 +121,25 @@ func (gl *GitLabGateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	gl.proxy.ServeHTTP(w, r.WithContext(ctx))
 }
 
+func getRegularOrInstanceConfig(ctx context.Context) *conf.Configuration {
+	conf := getInstance(ctx).BaseConfig
+	if conf != nil {
+		return conf
+	}
+	return getConfig(ctx)
+}
+
 func (gl *GitLabGateway) authenticate(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 	claims := getClaims(ctx)
-	config := getConfig(ctx)
+	config := getRegularOrInstanceConfig(r.Context())
 
 	if claims == nil {
 		return errors.New("Access to endpoint not allowed: no claims found in Bearer token")
 	}
 
 	if !gitlabAllowedRegexp.MatchString(r.URL.Path) {
-		return errors.New("Access to endpoint not allowed: this part of GitLab's API has been restricted")
+		return errors.New("Access to endpoint not allowed: this part of GitLab's API has been restricted: tried " + r.URL.Path)
 	}
 
 	if len(config.Roles) == 0 {
@@ -179,7 +200,7 @@ type GitLabTransport struct{}
 
 func (t *GitLabTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	ctx := r.Context()
-	config := getConfig(ctx)
+	config := getRegularOrInstanceConfig(ctx)
 	resp, err := http.DefaultTransport.RoundTrip(r)
 	if err == nil {
 		// remove CORS headers from GitLab and use our own

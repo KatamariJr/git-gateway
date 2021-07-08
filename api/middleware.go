@@ -31,27 +31,33 @@ func (a *API) loadJWSSignatureHeader(w http.ResponseWriter, r *http.Request) (co
 func (a *API) loadInstanceConfig(w http.ResponseWriter, r *http.Request) (context.Context, error) {
 	ctx := r.Context()
 
-	signature := getSignature(ctx)
-	if signature == "" {
-		return nil, badRequestError("Operator signature missing")
-	}
+	//signature := getSignature(ctx)
+	//if signature == "" {
+	//	return nil, badRequestError("Operator signature missing")
+	//}
 
-	claims := NetlifyMicroserviceClaims{}
-	p := jwt.Parser{ValidMethods: []string{jwt.SigningMethodHS256.Name}}
-	_, err := p.ParseWithClaims(signature, &claims, func(token *jwt.Token) (interface{}, error) {
-		return []byte(a.config.OperatorToken), nil
-	})
-	if err != nil {
-		return nil, badRequestError("Operator microservice signature is invalid: %v", err)
-	}
+	//token, err := a.extractBearerToken(w, r)
 
-	instanceID := claims.InstanceID
+	config := getConfig(r.Context())
+
+	//claims := NetlifyMicroserviceClaims{}
+	//p := jwt.Parser{ValidMethods: []string{jwt.SigningMethodHS256.Name}}
+	//_, err = p.ParseWithClaims(token, &claims, func(token *jwt.Token) (interface{}, error) {
+	//	return []byte(config.JWT.Secret), nil
+	//})
+
+	//
+	//if err != nil {
+	//	return nil, badRequestError("Operator microservice signature is invalid: %v", err)
+	//}
+
+	instanceID := getInstanceID(ctx)
 	if instanceID == "" {
 		return nil, badRequestError("Instance ID is missing")
 	}
 
 	logEntrySetField(r, "instance_id", instanceID)
-	logEntrySetField(r, "netlify_id", claims.NetlifyID)
+	//logEntrySetField(r, "netlify_id", claims.NetlifyID)
 	instance, err := a.db.GetInstance(instanceID)
 	if err != nil {
 		if models.IsNotFoundError(err) {
@@ -60,12 +66,12 @@ func (a *API) loadInstanceConfig(w http.ResponseWriter, r *http.Request) (contex
 		return nil, internalServerError("Database error loading instance").WithInternalError(err)
 	}
 
-	config, err := instance.Config()
+	config, err = instance.Config()
 	if err != nil {
 		return nil, internalServerError("Error loading environment config").WithInternalError(err)
 	}
 
-	ctx = withNetlifyID(ctx, claims.NetlifyID)
+	//ctx = withNetlifyID(ctx, claims.NetlifyID)
 	ctx, err = WithInstanceConfig(ctx, config, instanceID)
 	if err != nil {
 		return nil, internalServerError("Error loading instance config").WithInternalError(err)
@@ -74,18 +80,18 @@ func (a *API) loadInstanceConfig(w http.ResponseWriter, r *http.Request) (contex
 	return ctx, nil
 }
 
-func (a *API) verifyOperatorRequest(w http.ResponseWriter, req *http.Request) (context.Context, error) {
-	c, _, err := a.extractOperatorRequest(w, req)
-	return c, err
-}
+//func (a *API) verifyOperatorRequest(w http.ResponseWriter, req *http.Request) (context.Context, error) {
+//	c, _, err := a.extractOperatorRequest(w, req)
+//	return c, err
+//}
 
-func (a *API) extractOperatorRequest(w http.ResponseWriter, req *http.Request) (context.Context, string, error) {
-	token, err := a.extractBearerToken(w, req)
-	if err != nil {
-		return nil, token, err
-	}
-	if token == "" || token != a.config.OperatorToken {
-		return nil, token, unauthorizedError("Request does not include an Operator token")
-	}
-	return req.Context(), token, nil
-}
+//func (a *API) extractOperatorRequest(w http.ResponseWriter, req *http.Request) (context.Context, string, error) {
+//	token, err := a.extractBearerToken(w, req)
+//	if err != nil {
+//		return nil, token, err
+//	}
+//	if token == "" || token != a.config.OperatorToken {
+//		return nil, token, unauthorizedError("Request does not include an Operator token")
+//	}
+//	return req.Context(), token, nil
+//}

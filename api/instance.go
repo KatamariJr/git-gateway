@@ -23,6 +23,8 @@ func (a *API) loadInstance(w http.ResponseWriter, r *http.Request) (context.Cont
 		return nil, internalServerError("Database error loading instance").WithInternalError(err)
 	}
 
+	i.BaseConfig.ApplyDefaults()
+
 	return withInstance(r.Context(), i), nil
 }
 
